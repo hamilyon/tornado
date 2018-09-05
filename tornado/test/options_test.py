@@ -1,24 +1,25 @@
 # -*- coding: utf-8 -*-
-from __future__ import absolute_import, division, print_function, with_statement
+from __future__ import absolute_import, division, print_function
 
 import datetime
 import os
 import sys
 
 from tornado.options import OptionParser, Error
-from tornado.util import basestring_type
-from tornado.test.util import unittest
+from tornado.util import basestring_type, PY3
+from tornado.test.util import unittest, subTest
+
+if PY3:
+    from io import StringIO
+else:
+    from cStringIO import StringIO
 
 try:
-    from cStringIO import StringIO  # python 2
-except ImportError:
-    from io import StringIO  # python 3
-
-try:
-    from unittest import mock  # python 3.3
+    # py33+
+    from unittest import mock  # type: ignore
 except ImportError:
     try:
-        import mock  # third-party mock package
+        import mock  # type: ignore
     except ImportError:
         mock = None
 
@@ -34,10 +35,13 @@ class OptionsTest(unittest.TestCase):
         options = OptionParser()
         options.define("port", default=80)
         options.define("username", default='foo')
-        options.parse_config_file(os.path.join(os.path.dirname(__file__),
-                                               "options_test.cfg"))
-        self.assertEquals(options.port, 443)
+        options.define("my_path")
+        config_path = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                                   "options_test.cfg")
+        options.parse_config_file(config_path)
+        self.assertEqual(options.port, 443)
         self.assertEqual(options.username, "李康")
+        self.assertEqual(options.my_path, config_path)
 
     def test_parse_callbacks(self):
         options = OptionParser()
@@ -227,6 +231,24 @@ class OptionsTest(unittest.TestCase):
             options.define('foo')
         self.assertRegexpMatches(str(cm.exception),
                                  'Option.*foo.*already defined')
+
+    def test_error_redefine_underscore(self):
+        # Ensure that the dash/underscore normalization doesn't
+        # interfere with the redefinition error.
+        tests = [
+            ('foo-bar', 'foo-bar'),
+            ('foo_bar', 'foo_bar'),
+            ('foo-bar', 'foo_bar'),
+            ('foo_bar', 'foo-bar'),
+            ]
+        for a, b in tests:
+            with subTest(self, a=a, b=b):
+                options = OptionParser()
+                options.define(a)
+                with self.assertRaises(Error) as cm:
+                    options.define(b)
+                self.assertRegexpMatches(str(cm.exception),
+                                         'Option.*foo.bar.*already defined')
 
     def test_dash_underscore_cli(self):
         # Dashes and underscores should be interchangeable.

@@ -1,4 +1,4 @@
-from __future__ import absolute_import, division, print_function, with_statement
+from __future__ import absolute_import, division, print_function
 from wsgiref.validate import validator
 
 from tornado.escape import json_decode
@@ -6,6 +6,9 @@ from tornado.test.httpserver_test import TypeCheckHandler
 from tornado.testing import AsyncHTTPTestCase
 from tornado.web import RequestHandler, Application
 from tornado.wsgi import WSGIApplication, WSGIContainer, WSGIAdapter
+
+from tornado.test import httpserver_test
+from tornado.test import web_test
 
 
 class WSGIContainerTest(AsyncHTTPTestCase):
@@ -61,13 +64,10 @@ class WSGIApplicationTest(AsyncHTTPTestCase):
         data = json_decode(response.body)
         self.assertEqual(data, {})
 
-# This is kind of hacky, but run some of the HTTPServer tests through
-# WSGIContainer and WSGIApplication to make sure everything survives
-# repeated disassembly and reassembly.
-from tornado.test import httpserver_test
-from tornado.test import web_test
 
-
+# This is kind of hacky, but run some of the HTTPServer and web tests
+# through WSGIContainer and WSGIApplication to make sure everything
+# survives repeated disassembly and reassembly.
 class WSGIConnectionTest(httpserver_test.HTTPConnectionTest):
     def get_app(self):
         return WSGIContainer(validator(WSGIApplication(self.get_handlers())))
@@ -76,24 +76,28 @@ class WSGIConnectionTest(httpserver_test.HTTPConnectionTest):
 def wrap_web_tests_application():
     result = {}
     for cls in web_test.wsgi_safe_tests:
-        class WSGIApplicationWrappedTest(cls):
+        class WSGIApplicationWrappedTest(cls):  # type: ignore
             def get_app(self):
                 self.app = WSGIApplication(self.get_handlers(),
                                            **self.get_app_kwargs())
                 return WSGIContainer(validator(self.app))
         result["WSGIApplication_" + cls.__name__] = WSGIApplicationWrappedTest
     return result
+
+
 globals().update(wrap_web_tests_application())
 
 
 def wrap_web_tests_adapter():
     result = {}
     for cls in web_test.wsgi_safe_tests:
-        class WSGIAdapterWrappedTest(cls):
+        class WSGIAdapterWrappedTest(cls):  # type: ignore
             def get_app(self):
                 self.app = Application(self.get_handlers(),
                                        **self.get_app_kwargs())
                 return WSGIContainer(validator(WSGIAdapter(self.app)))
         result["WSGIAdapter_" + cls.__name__] = WSGIAdapterWrappedTest
     return result
+
+
 globals().update(wrap_web_tests_adapter())

@@ -1,5 +1,5 @@
 # coding: utf-8
-from __future__ import absolute_import, division, print_function, with_statement
+from __future__ import absolute_import, division, print_function
 
 from hashlib import md5
 
@@ -13,7 +13,7 @@ from tornado.web import Application, RequestHandler
 
 
 try:
-    import pycurl
+    import pycurl  # type: ignore
 except ImportError:
     pycurl = None
 

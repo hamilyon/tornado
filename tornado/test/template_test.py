@@ -1,4 +1,4 @@
-from __future__ import absolute_import, division, print_function, with_statement
+from __future__ import absolute_import, division, print_function
 
 import os
 import sys
@@ -6,8 +6,8 @@ import traceback
 
 from tornado.escape import utf8, native_str, to_unicode
 from tornado.template import Template, DictLoader, ParseError, Loader
-from tornado.test.util import unittest
-from tornado.util import ObjectDict, unicode_type
+from tornado.test.util import unittest, is_coverage_running
+from tornado.util import ObjectDict, unicode_type, PY3
 
 
 class TemplateTest(unittest.TestCase):
@@ -67,6 +67,7 @@ class TemplateTest(unittest.TestCase):
         self.assertRaises(ParseError, lambda: Template("{%"))
         self.assertEqual(Template("{{!").generate(), b"{{")
         self.assertEqual(Template("{%!").generate(), b"{%")
+        self.assertEqual(Template("{#!").generate(), b"{#")
         self.assertEqual(Template("{{ 'expr' }} {{!jquery expr}}").generate(),
                          b"expr {{jquery expr}}")
 
@@ -174,6 +175,11 @@ try{% set y = 1/x %}
         self.assertEqual(template.generate(), '0')
 
     def test_non_ascii_name(self):
+        if PY3 and is_coverage_running():
+            try:
+                os.fsencode(u"t\u00e9st.html")
+            except UnicodeEncodeError:
+                self.skipTest("coverage tries to access unencodable filename")
         loader = DictLoader({u"t\u00e9st.html": "hello"})
         self.assertEqual(loader.load(u"t\u00e9st.html").generate(), b"hello")
 
@@ -205,7 +211,7 @@ three{%end%}
         loader = DictLoader({
             "base.html": "{% module Template('sub.html') %}",
             "sub.html": "{{1/0}}",
-        }, namespace={"_tt_modules": ObjectDict({"Template": lambda path, **kwargs: loader.load(path).generate(**kwargs)})})
+        }, namespace={"_tt_modules": ObjectDict(Template=lambda path, **kwargs: loader.load(path).generate(**kwargs))})
         try:
             loader.load("base.html").generate()
             self.fail("did not get expected exception")
@@ -279,6 +285,11 @@ class ParseErrorDetailTest(unittest.TestCase):
                          str(cm.exception))
         self.assertEqual("foo.html", cm.exception.filename)
         self.assertEqual(3, cm.exception.lineno)
+
+    def test_custom_parse_error(self):
+        # Make sure that ParseErrors remain compatible with their
+        # pre-4.3 signature.
+        self.assertEqual("asdf at None:0", str(ParseError("asdf")))
 
 
 class AutoEscapeTest(unittest.TestCase):

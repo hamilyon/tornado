@@ -12,14 +12,14 @@
 # License for the specific language governing permissions and limitations
 # under the License.
 
-from __future__ import absolute_import, division, print_function, with_statement
-
-__all__ = ['Condition', 'Event', 'Semaphore', 'BoundedSemaphore', 'Lock']
+from __future__ import absolute_import, division, print_function
 
 import collections
 
 from tornado import gen, ioloop
 from tornado.concurrent import Future
+
+__all__ = ['Condition', 'Event', 'Semaphore', 'BoundedSemaphore', 'Lock']
 
 
 class _TimeoutGarbageCollector(object):

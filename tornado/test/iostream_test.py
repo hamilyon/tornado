@@ -1,4 +1,4 @@
-from __future__ import absolute_import, division, print_function, with_statement
+from __future__ import absolute_import, division, print_function
 from tornado.concurrent import Future
 from tornado import gen
 from tornado import netutil
@@ -9,7 +9,7 @@ from tornado.netutil import ssl_wrap_socket
 from tornado.stack_context import NullContext
 from tornado.tcpserver import TCPServer
 from tornado.testing import AsyncHTTPTestCase, AsyncHTTPSTestCase, AsyncTestCase, bind_unused_port, ExpectLog, gen_test
-from tornado.test.util import unittest, skipIfNonUnix, refusing_port
+from tornado.test.util import unittest, skipIfNonUnix, refusing_port, skipPypy3V58
 from tornado.web import RequestHandler, Application
 import errno
 import logging
@@ -20,10 +20,10 @@ import ssl
 import sys
 
 try:
-    from unittest import mock  # python 3.3
+    from unittest import mock  # type: ignore
 except ImportError:
     try:
-        import mock  # third-party mock package
+        import mock  # type: ignore
     except ImportError:
         mock = None
 
@@ -258,7 +258,7 @@ class TestIOStreamMixin(object):
         stream = IOStream(s, io_loop=self.io_loop)
         stream.set_close_callback(self.stop)
         with mock.patch('socket.socket.connect',
-                        side_effect=socket.gaierror('boom')):
+                        side_effect=socket.gaierror(errno.EIO, 'boom')):
             with ExpectLog(gen_log, "Connect error"):
                 stream.connect(('localhost', 80), callback=self.stop)
                 self.wait()
@@ -539,6 +539,7 @@ class TestIOStreamMixin(object):
             client.close()
 
     @skipIfNonUnix
+    @skipPypy3V58
     def test_inline_read_error(self):
         # An error on an inline read is raised without logging (on the
         # assumption that it will eventually be noticed or logged further
@@ -557,6 +558,7 @@ class TestIOStreamMixin(object):
             server.close()
             client.close()
 
+    @skipPypy3V58
     def test_async_read_error_logging(self):
         # Socket errors on asynchronous reads should be logged (but only
         # once).
@@ -598,6 +600,17 @@ class TestIOStreamMixin(object):
             client.close()
             self.wait()
             self.assertTrue(closed[0])
+        finally:
+            server.close()
+            client.close()
+
+    def test_write_memoryview(self):
+        server, client = self.make_iostream_pair()
+        try:
+            client.read_bytes(4, self.stop)
+            server.write(memoryview(b"hello"))
+            data = self.wait()
+            self.assertEqual(data, b"hell")
         finally:
             server.close()
             client.close()
@@ -797,6 +810,40 @@ class TestIOStreamMixin(object):
             server.close()
             client.close()
 
+    def test_future_write(self):
+        """
+        Test that write() Futures are never orphaned.
+        """
+        # Run concurrent writers that will write enough bytes so as to
+        # clog the socket buffer and accumulate bytes in our write buffer.
+        m, n = 10000, 1000
+        nproducers = 10
+        total_bytes = m * n * nproducers
+        server, client = self.make_iostream_pair(max_buffer_size=total_bytes)
+
+        @gen.coroutine
+        def produce():
+            data = b'x' * m
+            for i in range(n):
+                yield server.write(data)
+
+        @gen.coroutine
+        def consume():
+            nread = 0
+            while nread < total_bytes:
+                res = yield client.read_bytes(m)
+                nread += len(res)
+
+        @gen.coroutine
+        def main():
+            yield [produce() for i in range(nproducers)] + [consume()]
+
+        try:
+            self.io_loop.run_sync(main)
+        finally:
+            server.close()
+            client.close()
+
 
 class TestIOStreamWebHTTP(TestIOStreamWebMixin, AsyncHTTPTestCase):
     def _make_client_iostream(self):
@@ -948,7 +995,7 @@ class TestIOStreamStartTLS(AsyncTestCase):
         server_future = self.server_start_tls(_server_ssl_options())
         client_future = self.client_start_tls(
             ssl.create_default_context(),
-            server_hostname=b'127.0.0.1')
+            server_hostname='127.0.0.1')
         with ExpectLog(gen_log, "SSL Error"):
             with self.assertRaises(ssl.SSLError):
                 # The client fails to connect with an SSL error.

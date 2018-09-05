@@ -1,5 +1,6 @@
 # !/usr/bin/env python
 from __future__ import absolute_import, division, print_function, with_statement
+
 from tornado.escape import utf8, _unicode
 from tornado import gen
 from tornado.httpclient import HTTPResponse, HTTPError, AsyncHTTPClient, main, _RequestProxy
@@ -10,6 +11,8 @@ from tornado.netutil import Resolver, OverrideResolver, _client_ssl_defaults
 from tornado.log import gen_log
 from tornado import stack_context
 from tornado.tcpclient import TCPClient
+from tornado.util import PY3
+
 import base64
 import collections
 import copy
@@ -19,10 +22,11 @@ import socket
 import sys
 from io import BytesIO
 import logging
-try:
-    import urlparse  # py2
-except ImportError:
-    import urllib.parse as urlparse  # py3
+
+if PY3:
+    import urllib.parse as urlparse
+else:
+    import urlparse
 
 try:
     import ssl
@@ -433,7 +437,8 @@ class _HTTPConnection(httputil.HTTPMessageDelegate):
             raise KeyError("unknown method %s" % self.request.method)
         for key in ('network_interface',
                     'proxy_host', 'proxy_port',
-                    'proxy_username', 'proxy_password'):
+                    'proxy_username', 'proxy_password',
+                    'proxy_auth_mode'):
             if getattr(self.request, key, None):
                 raise NotImplementedError('%s not supported' % key)
         if "Connection" not in self.request.headers:
@@ -616,7 +621,7 @@ class _HTTPConnection(httputil.HTTPMessageDelegate):
     def _should_follow_redirect(self):
         return (self.request.follow_redirects and
                 self.request.max_redirects > 0 and
-                self.code in (301, 302, 303, 307))
+                self.code in (301, 302, 303, 307, 308))
 
     def finish(self):
         data = b''.join(self.chunks)

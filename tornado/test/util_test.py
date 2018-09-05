@@ -1,17 +1,18 @@
 # coding: utf-8
-from __future__ import absolute_import, division, print_function, with_statement
+from __future__ import absolute_import, division, print_function
+import re
 import sys
 import datetime
 
 import tornado.escape
 from tornado.escape import utf8
-from tornado.util import raise_exc_info, Configurable, exec_in, ArgReplacer, timedelta_to_seconds, import_object
+from tornado.util import raise_exc_info, Configurable, exec_in, ArgReplacer, timedelta_to_seconds, import_object, re_unescape, is_finalizing, PY3
 from tornado.test.util import unittest
 
-try:
-    from cStringIO import StringIO  # py2
-except ImportError:
-    from io import StringIO  # py3
+if PY3:
+    from io import StringIO
+else:
+    from cStringIO import StringIO
 
 
 class RaiseExcInfoTest(unittest.TestCase):
@@ -199,3 +200,28 @@ class ImportObjectTest(unittest.TestCase):
         # whether the thing being imported is a module or not.
         # This variant requires a byte string in python 2.
         self.assertIs(import_object(u'tornado.escape'), tornado.escape)
+
+
+class ReUnescapeTest(unittest.TestCase):
+    def test_re_unescape(self):
+        test_strings = (
+            '/favicon.ico',
+            'index.html',
+            'Hello, World!',
+            '!$@#%;',
+        )
+        for string in test_strings:
+            self.assertEqual(string, re_unescape(re.escape(string)))
+
+    def test_re_unescape_raises_error_on_invalid_input(self):
+        with self.assertRaises(ValueError):
+            re_unescape('\\d')
+        with self.assertRaises(ValueError):
+            re_unescape('\\b')
+        with self.assertRaises(ValueError):
+            re_unescape('\\Z')
+
+
+class IsFinalizingTest(unittest.TestCase):
+    def test_basic(self):
+        self.assertFalse(is_finalizing())

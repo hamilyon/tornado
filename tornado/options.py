@@ -43,8 +43,8 @@ either::
 
 .. note:
 
-   When using tornado.options.parse_command_line or 
-   tornado.options.parse_config_file, the only options that are set are 
+   When using tornado.options.parse_command_line or
+   tornado.options.parse_config_file, the only options that are set are
    ones that were previously defined with tornado.options.define.
 
 Command line formats are what you would expect (``--myoption=myvalue``).
@@ -82,7 +82,7 @@ instances to define isolated sets of options, such as for subcommands.
    underscores.
 """
 
-from __future__ import absolute_import, division, print_function, with_statement
+from __future__ import absolute_import, division, print_function
 
 import datetime
 import numbers
@@ -223,9 +223,10 @@ class OptionParser(object):
         override options set earlier on the command line, but can be overridden
         by later flags.
         """
-        if name in self._options:
+        normalized = self._normalize_name(name)
+        if normalized in self._options:
             raise Error("Option %r already defined in %s" %
-                        (name, self._options[name].file_name))
+                        (normalized, self._options[normalized].file_name))
         frame = sys._getframe(0)
         options_file = frame.f_code.co_filename
 
@@ -247,7 +248,6 @@ class OptionParser(object):
             group_name = group
         else:
             group_name = file_name
-        normalized = self._normalize_name(name)
         option = _Option(name, file_name=file_name,
                          default=default, type=type, help=help,
                          metavar=metavar, multiple=multiple,
@@ -308,8 +308,12 @@ class OptionParser(object):
         .. versionchanged:: 4.1
            Config files are now always interpreted as utf-8 instead of
            the system default encoding.
+
+        .. versionchanged:: 4.4
+           The special variable ``__file__`` is available inside config
+           files, specifying the absolute path to the config file itself.
         """
-        config = {}
+        config = {'__file__': os.path.abspath(path)}
         with open(path, 'rb') as f:
             exec_in(native_str(f.read()), config, config)
         for name in config:
