@@ -65,7 +65,7 @@ class SimpleAsyncHTTPClient(AsyncHTTPClient):
     def initialize(self, io_loop, max_clients=10,
                    hostname_mapping=None, max_buffer_size=104857600,
                    resolver=None, defaults=None, max_header_size=None,
-                   max_body_size=None, reuse_connections=False, keepalive_timeout=15, max_routealive_size=100, retry=1):
+                   max_body_size=None, reuse_connections=True, keepalive_timeout=15, max_routealive_size=100, retry=1):
         """Creates a AsyncHTTPClient.
 
         Only a single AsyncHTTPClient instance exists per IOLoop
